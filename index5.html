@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendas Aeroduto</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg: #12161b;
+            --panel: #1b222a;
+            --panel-border: #2a323c;
+            --track: #2a323c;
+            --text: #edeff2;
+            --muted: #8891a0;
+            --success: #4ade80;
+            --danger: #ff6b6b;
+        }
+
+        [data-accent="mes"] {
+            --accent: #ff8a3d;
+            --accent-soft: rgba(255, 138, 61, 0.16);
+        }
+
+        [data-accent="ano"] {
+            --accent: #33c2a6;
+            --accent-soft: rgba(51, 194, 166, 0.16);
+        }
+
+        [data-accent="cliente"] {
+            --accent: #e5b8ff;
+            --accent-soft: rgba(229, 184, 255, 0.16);
+        }
+
+        [data-accent="editor"] {
+            --accent: #7c9cff;
+            --accent-soft: rgba(124, 156, 255, 0.16);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', -apple-system, sans-serif;
+        }
+
+        .page {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 40px 24px 64px;
+        }
+
+        .page__topo {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+
+        .page__header h1 {
+            font-size: clamp(24px, 4vw, 34px);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin: 0 0 6px;
+        }
+
+        .page__subtitle {
+            color: var(--muted);
+            font-size: 14px;
+            max-width: 56ch;
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        .sair {
+            color: var(--muted);
+            font-size: 13px;
+            text-decoration: none;
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 8px 14px;
+            white-space: nowrap;
+        }
+
+        .sair:hover {
+            color: var(--text);
+        }
+
+        .seletor-periodo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            border-radius: 14px;
+            padding: 12px 16px;
+            margin-bottom: 24px;
+        }
+
+        .seletor-periodo select {
+            background: var(--bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 8px 10px;
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+        }
+
+        .seletor-periodo__rotulo {
+            font-family: 'Space Mono', monospace;
+            font-size: 13px;
+            color: var(--muted);
+            margin-left: auto;
+        }
+
+        .linha-mes {
+            display: grid;
+            grid-template-columns: minmax(260px, 1fr) minmax(300px, 1.3fr);
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 720px) {
+            .linha-mes {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .gauge-card {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            border-radius: 20px;
+            padding: 28px 24px 32px;
+        }
+
+        .gauge-card__title {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0 0 20px;
+        }
+
+        .gauge-slot {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .gauge-slot__label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+            margin: 0 0 8px;
+            max-width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-align: center;
+        }
+
+        .gauge {
+            position: relative;
+            width: 100%;
+            max-width: 220px;
+        }
+
+        .gauge--pequeno {
+            max-width: 120px;
+        }
+
+        .gauge--grande {
+            max-width: 230px;
+        }
+
+        .gauge__glow {
+            position: absolute;
+            inset: -14px 0 auto 0;
+            height: 160px;
+            background: radial-gradient(circle at 50% 100%, var(--accent-soft), transparent 70%);
+            pointer-events: none;
+        }
+
+        .gauge--pequeno .gauge__glow {
+            height: 90px;
+        }
+
+        .gauge__svg {
+            position: relative;
+            width: 100%;
+            height: auto;
+            overflow: visible;
+        }
+
+        .gauge__track {
+            fill: none;
+            stroke: var(--track);
+            stroke-width: 14;
+            stroke-linecap: round;
+        }
+
+        .gauge__fill {
+            fill: none;
+            stroke: var(--accent);
+            stroke-width: 14;
+            stroke-linecap: round;
+            stroke-dasharray: 100;
+            stroke-dashoffset: 100;
+            transition: stroke-dashoffset 0.9s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .gauge__ticks line {
+            stroke: var(--muted);
+            stroke-width: 2;
+            opacity: 0.5;
+        }
+
+        .gauge__needle {
+            stroke: var(--accent);
+            stroke-width: 4;
+            stroke-linecap: round;
+            transform-box: fill-box;
+            transform-origin: 50% 100%;
+            transform: rotate(-90deg);
+            transition: transform 0.9s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .gauge__hub {
+            fill: var(--panel);
+            stroke: var(--accent);
+            stroke-width: 3;
+        }
+
+        .gauge__readout {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            justify-content: center;
+            gap: 4px;
+            margin-top: 6px;
+            font-family: 'Space Mono', monospace;
+        }
+
+        .gauge__value {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .gauge--pequeno .gauge__value {
+            font-size: 14px;
+        }
+
+        .gauge__divider {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .gauge--pequeno .gauge__divider {
+            font-size: 10px;
+        }
+
+        .gauge__goal {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .gauge--pequeno .gauge__goal {
+            font-size: 10px;
+        }
+
+        .gauge__compact {
+            margin: 2px 0 0;
+            font-size: 11px;
+            color: var(--muted);
+            min-height: 13px;
+            text-align: center;
+        }
+
+        .gauge-card__status {
+            margin: 10px 0 0;
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 500;
+            background: var(--track);
+            color: var(--muted);
+        }
+
+        .gauge-card__status[data-done="true"] {
+            background: rgba(74, 222, 128, 0.14);
+            color: var(--success);
+        }
+
+        .clientes-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+        }
+
+        @media (max-width: 480px) {
+            .clientes-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .cliente-slot {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: var(--bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 14px;
+            padding: 12px 8px 10px;
+        }
+
+        .entradas-lista {
+            list-style: none;
+            margin: 10px 0 0;
+            padding: 0;
+            width: 100%;
+            max-height: 110px;
+            overflow-y: auto;
+            border-top: 1px solid var(--panel-border);
+        }
+
+        .entradas-lista__item {
+            display: flex;
+            justify-content: space-between;
+            gap: 6px;
+            padding: 5px 2px;
+            border-bottom: 1px solid var(--panel-border);
+            font-size: 11px;
+        }
+
+        .entradas-lista__item span:first-child {
+            color: var(--text);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .entradas-lista__item span:last-child {
+            font-family: 'Space Mono', monospace;
+            color: var(--muted);
+            flex-shrink: 0;
+        }
+
+        .entradas-lista__vazio {
+            padding: 8px 2px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 11px;
+        }
+
+        .entradas-lista__remover {
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0 0 0 6px;
+            flex-shrink: 0;
+        }
+
+        .entradas-lista__remover:hover {
+            color: var(--danger);
+        }
+
+        .grafico {
+            width: 100%;
+            height: auto;
+            margin-top: 8px;
+            overflow: visible;
+        }
+
+        .grafico--largo {
+            max-width: 100%;
+        }
+
+        .grafico__rotulo {
+            font-family: 'Inter', sans-serif;
+            font-size: 9px;
+            fill: var(--muted);
+        }
+
+        .grafico__valor {
+            font-family: 'Space Mono', monospace;
+            font-size: 9px;
+            fill: var(--text);
+        }
+
+        .grafico__linha-meta {
+            stroke: var(--muted);
+            stroke-width: 1.5;
+            stroke-dasharray: 3 2;
+        }
+
+        .graficos-acoes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 20px;
+        }
+
+        .graficos-acoes button {
+            background: var(--bg);
+            border: 1px solid var(--panel-border);
+            color: var(--text);
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .graficos-acoes button:hover {
+            border-color: var(--accent);
+        }
+
+        .editores {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            margin-top: 24px;
+        }
+
+        .field {
+            margin-bottom: 18px;
+        }
+
+        .field label {
+            display: block;
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .editor-select {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 10px 12px;
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+        }
+
+        .editor-card__info {
+            font-family: 'Space Mono', monospace;
+            font-size: 13px;
+            color: var(--muted);
+            margin: -8px 0 20px;
+        }
+
+        .editor-divisor {
+            border: none;
+            border-top: 1px solid var(--panel-border);
+            margin: 24px 0 20px;
+        }
+
+        .editor-card__subtitulo {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+            margin: 0 0 16px;
+        }
+
+        .modo {
+            display: inline-flex;
+            gap: 4px;
+            background: var(--bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 3px;
+            margin-bottom: 8px;
+        }
+
+        .modo input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .modo label {
+            margin: 0;
+            padding: 6px 10px;
+            font-size: 12px;
+            border-radius: 7px;
+            color: var(--muted);
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .modo input:checked+label {
+            background: var(--accent);
+            color: #12161b;
+            font-weight: 600;
+        }
+
+        .modo input:focus-visible+label {
+            outline: 2px solid var(--text);
+            outline-offset: 1px;
+        }
+
+        #celebracao {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .field__row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .field__row input {
+            flex: 1;
+            min-width: 0;
+            background: var(--bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 10px 12px;
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+        }
+
+        .field__row input:focus-visible,
+        .editor-select:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 1px;
+        }
+
+        .field__row button {
+            background: var(--accent);
+            color: #12161b;
+            border: none;
+            border-radius: 10px;
+            padding: 0 16px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: filter 0.15s;
+        }
+
+        .field__row button:hover {
+            filter: brightness(1.08);
+        }
+
+        .field__row button:focus-visible {
+            outline: 2px solid var(--text);
+            outline-offset: 2px;
+        }
+
+        .page__message {
+            text-align: center;
+            color: var(--danger);
+            margin-top: 32px;
+            min-height: 20px;
+            font-size: 14px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+
+            .gauge__fill,
+            .gauge__needle,
+            .field__row button {
+                transition: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="page__topo">
+            <header class="page__header">
+                <h1>Vendas Aeroduto</h1>
+                <p class="page__subtitle">Escolha o mês e o ano. À esquerda, o acumulado do mês (só a meta é
+                    editável). À direita, os 3 velocímetros de clientes — cada entrada que você adiciona soma no
+                    total. Embaixo, o acumulado do ano inteiro.</p>
+            </header>
+            <a class="sair" href="{{ url_for('logout') }}">Sair ({{ usuario }})</a>
+        </div>
+
+        <div class="seletor-periodo">
+            <label for="seletorMes" class="editor-card__info" style="margin:0;">Mês</label>
+            <select id="seletorMes" class="editor-select" style="width:auto;"></select>
+            <label for="seletorAno" class="editor-card__info" style="margin:0;">Ano</label>
+            <select id="seletorAno" class="editor-select" style="width:auto;"></select>
+            <span class="seletor-periodo__rotulo" id="rotuloMesAno"></span>
+        </div>
+
+        <main class="linha-mes">
+            <section class="gauge-card" data-accent="mes">
+                <h2 class="gauge-card__title">Acumulado do mês</h2>
+                <div class="gauge-slot">
+                    <div class="gauge gauge--grande">
+                        <div class="gauge__glow"></div>
+                        <svg class="gauge__svg" viewBox="0 0 200 112">
+                            <path class="gauge__track" d="M 20 100 A 80 80 0 0 1 180 100" pathLength="100" />
+                            <path class="gauge__fill" id="fill-mes" d="M 20 100 A 80 80 0 0 1 180 100" pathLength="100" />
+                            <g class="gauge__ticks">
+                                <line x1="2" y1="100" x2="12" y2="100" />
+                                <line x1="30.7" y1="30.7" x2="37.78" y2="37.78" />
+                                <line x1="100" y1="2" x2="100" y2="12" />
+                                <line x1="169.3" y1="30.7" x2="162.22" y2="37.78" />
+                                <line x1="198" y1="100" x2="188" y2="100" />
+                            </g>
+                            <line id="needle-mes" class="gauge__needle" x1="100" y1="100" x2="100" y2="30" />
+                            <circle class="gauge__hub" cx="100" cy="100" r="7" />
+                        </svg>
+                        <div class="gauge__readout">
+                            <span class="gauge__value" id="valorAtual-mes">0</span>
+                            <span class="gauge__divider">/</span>
+                            <span class="gauge__goal" id="valorMeta-mes">0</span>
+                        </div>
+                        <p class="gauge__compact" id="compacto-mes"></p>
+                    </div>
+                    <p class="gauge-card__status" id="status-mes">Em andamento</p>
+                </div>
+            </section>
+
+            <section class="gauge-card" data-accent="cliente">
+                <h2 class="gauge-card__title">Velocímetros de clientes (escala pela meta do mês)</h2>
+                <div class="clientes-grid">
+                    {% for i in range(3) %}
+                    <div class="cliente-slot">
+                        <p class="gauge-slot__label" id="nome-g{{ i }}">Equipe {{ i + 1 }}</p>
+                        <div class="gauge gauge--pequeno">
+                            <div class="gauge__glow"></div>
+                            <svg class="gauge__svg" viewBox="0 0 200 112">
+                                <path class="gauge__track" d="M 20 100 A 80 80 0 0 1 180 100" pathLength="100" />
+                                <path class="gauge__fill" id="fill-g{{ i }}" d="M 20 100 A 80 80 0 0 1 180 100" pathLength="100" />
+                                <g class="gauge__ticks">
+                                    <line x1="2" y1="100" x2="12" y2="100" />
+                                    <line x1="30.7" y1="30.7" x2="37.78" y2="37.78" />
+                                    <line x1="100" y1="2" x2="100" y2="12" />
+                                    <line x1="169.3" y1="30.7" x2="162.22" y2="37.78" />
+                                    <line x1="198" y1="100" x2="188" y2="100" />
+                                </g>
+                                <line id="needle-g{{ i }}" class="gauge__needle" x1="100" y1="100" x2="100" y2="30" />
+                                <circle class="gauge__hub" cx="100" cy="100" r="7" />
+                            </svg>
+                            <div class="gauge__readout">
+                                <span class="gauge__value" id="valorAtual-g{{ i }}">0</span>
+                            </div>
+                            <p class="gauge__compact" id="compacto-g{{ i }}"></p>
+                        </div>
+                        <ul class="entradas-lista" id="entradas-g{{ i }}"></ul>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+        </main>
+
+        <section class="gauge-card" data-accent="ano" style="margin-bottom:24px;">
+            <h2 class="gauge-card__title">Acumulado do ano</h2>
+            <div class="gauge-slot">
+                <p class="gauge-slot__label" id="rotuloAno"></p>
+                <div class="gauge gauge--grande">
+                    <div class="gauge__glow"></div>
+                    <svg class="gauge__svg" viewBox="0 0 200 112">
+                        <path class="gauge__track" d="M 20 100 A 80 80 0 0 1 180 100" pathLength="100" />
+                        <path class="gauge__fill" id="fill-ano" d="M 20 100 A 80 80 0 0 1 180 100" pathLength="100" />
+                        <g class="gauge__ticks">
+                            <line x1="2" y1="100" x2="12" y2="100" />
+                            <line x1="30.7" y1="30.7" x2="37.78" y2="37.78" />
+                            <line x1="100" y1="2" x2="100" y2="12" />
+                            <line x1="169.3" y1="30.7" x2="162.22" y2="37.78" />
+                            <line x1="198" y1="100" x2="188" y2="100" />
+                        </g>
+                        <line id="needle-ano" class="gauge__needle" x1="100" y1="100" x2="100" y2="30" />
+                        <circle class="gauge__hub" cx="100" cy="100" r="7" />
+                    </svg>
+                    <div class="gauge__readout">
+                        <span class="gauge__value" id="valorAtual-ano">0</span>
+                        <span class="gauge__divider">/</span>
+                        <span class="gauge__goal" id="valorMeta-ano">0</span>
+                    </div>
+                    <p class="gauge__compact" id="compacto-ano"></p>
+                </div>
+                <p class="gauge-card__status" id="status-ano">Em andamento</p>
+            </div>
+        </section>
+
+        <main class="editores">
+            <section class="gauge-card" data-accent="editor">
+                <h2 class="gauge-card__title">Editar metas</h2>
+                <p class="editor-card__info" id="infoMetaMes"></p>
+                <div class="field">
+                    <label for="campoMetaMes">Meta do mês selecionado</label>
+                    <div class="modo" role="radiogroup" aria-label="Modo de atualização da meta do mês">
+                        <input type="radio" name="modoMetaMes" id="modoMetaMesSomar" value="somar">
+                        <label for="modoMetaMesSomar">Somar</label>
+                        <input type="radio" name="modoMetaMes" id="modoMetaMesSubtrair" value="subtrair">
+                        <label for="modoMetaMesSubtrair">Subtrair</label>
+                        <input type="radio" name="modoMetaMes" id="modoMetaMesDefinir" value="definir" checked>
+                        <label for="modoMetaMesDefinir">Definir</label>
+                    </div>
+                    <div class="field__row">
+                        <input type="text" inputmode="numeric" id="campoMetaMes" placeholder="0">
+                        <button onclick="aplicarMetaMes()">Aplicar</button>
+                    </div>
+                </div>
+
+                <hr class="editor-divisor">
+
+                <p class="editor-card__info" id="infoMetaAno"></p>
+                <div class="field">
+                    <label for="campoMetaAno">Meta do ano selecionado</label>
+                    <div class="modo" role="radiogroup" aria-label="Modo de atualização da meta do ano">
+                        <input type="radio" name="modoMetaAno" id="modoMetaAnoSomar" value="somar">
+                        <label for="modoMetaAnoSomar">Somar</label>
+                        <input type="radio" name="modoMetaAno" id="modoMetaAnoSubtrair" value="subtrair">
+                        <label for="modoMetaAnoSubtrair">Subtrair</label>
+                        <input type="radio" name="modoMetaAno" id="modoMetaAnoDefinir" value="definir" checked>
+                        <label for="modoMetaAnoDefinir">Definir</label>
+                    </div>
+                    <div class="field__row">
+                        <input type="text" inputmode="numeric" id="campoMetaAno" placeholder="0">
+                        <button onclick="aplicarMetaAno()">Aplicar</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="gauge-card" data-accent="editor">
+                <h2 class="gauge-card__title">Editar velocímetros de clientes</h2>
+
+                <div class="field">
+                    <label for="seletorVelocimetro">Qual velocímetro</label>
+                    <select id="seletorVelocimetro" class="editor-select">
+                        <option value="0">Equipe 1</option>
+                        <option value="1">Equipe 2</option>
+                        <option value="2">Equipe 3</option>
+                    </select>
+                </div>
+
+                <p class="editor-card__info" id="infoVelocimetro"></p>
+
+                <div class="field">
+                    <label for="campoNomeVelocimetro">Nome</label>
+                    <div class="field__row">
+                        <input type="text" id="campoNomeVelocimetro" maxlength="40">
+                        <button onclick="salvarNomeVelocimetro()">Salvar</button>
+                    </div>
+                </div>
+
+                <hr class="editor-divisor">
+
+                <p class="editor-card__subtitulo">Adicionar entrada (cliente)</p>
+
+                <div class="field">
+                    <label for="campoClienteEntrada">Cliente</label>
+                    <input type="text" id="campoClienteEntrada" maxlength="60" placeholder="Nome do cliente"
+                        class="editor-select">
+                </div>
+
+                <div class="field">
+                    <label for="campoValorEntrada">Valor</label>
+                    <div class="field__row">
+                        <input type="text" inputmode="numeric" id="campoValorEntrada" placeholder="0">
+                        <button onclick="adicionarEntradaVelocimetro()">Adicionar</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <section class="gauge-card" data-accent="editor" style="margin-top:24px;">
+            <h2 class="gauge-card__title">Gráficos</h2>
+
+            <p class="editor-card__subtitulo">Contribuição de cada velocímetro no mês</p>
+            <svg id="grafico-mes" class="grafico" viewBox="0 0 300 150"></svg>
+
+            <p class="editor-card__subtitulo" style="margin-top:24px;">Acumulado x meta em cada mês do ano</p>
+            <svg id="grafico-ano" class="grafico grafico--largo" viewBox="0 0 600 180"></svg>
+
+            <div class="graficos-acoes">
+                <button onclick="baixarCsvMes()">Baixar CSV do mês</button>
+                <button onclick="baixarCsvAno()">Baixar CSV do ano</button>
+            </div>
+        </section>
+
+        <canvas id="celebracao" aria-hidden="true"></canvas>
+        <p class="page__message" id="mensagem" role="status" aria-live="polite"></p>
+    </div>
+
+    <script id="estado-inicial" type="application/json">{{ estado | tojson }}</script>
+
+    <script>
+        const NOMES_MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+        function formatarNumero(n) {
+            return Number(n).toLocaleString('pt-BR');
+        }
+
+        function formatarCompacto(n) {
+            return new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+        }
+
+        function formatarEntradaAoDigitar(elemento) {
+            elemento.addEventListener('input', () => {
+                const noFim = elemento.selectionEnd === elemento.value.length;
+                const somenteDigitos = elemento.value.replace(/\D/g, '');
+                elemento.value = somenteDigitos === '' ? '' : Number(somenteDigitos).toLocaleString('pt-BR');
+                if (noFim) {
+                    elemento.setSelectionRange(elemento.value.length, elemento.value.length);
+                }
+            });
+        }
+
+        function obterModo(nome) {
+            const selecionado = document.querySelector(`input[name="${nome}"]:checked`);
+            return selecionado ? selecionado.value : 'definir';
+        }
+
+        function lerNumero(texto) {
+            return parseInt(String(texto).replace(/\D/g, ''), 10) || 0;
+        }
+
+        // --- Comemoração com confete ---
+        const canvasConfete = document.getElementById('celebracao');
+        const ctxConfete = canvasConfete.getContext('2d');
+        let particulas = [];
+        let animandoConfete = false;
+        const concluidoAnterior = { mes: null, ano: null };
+        const preferemMenosMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        function redimensionarCanvas() {
+            canvasConfete.width = window.innerWidth;
+            canvasConfete.height = window.innerHeight;
+        }
+        window.addEventListener('resize', redimensionarCanvas);
+        redimensionarCanvas();
+
+        function celebrar(corPrincipal) {
+            if (preferemMenosMovimento) return;
+
+            const cores = [corPrincipal, '#ffd166', '#4ade80', '#edeff2'];
+            const origemX = window.innerWidth / 2;
+            const origemY = Math.min(220, window.innerHeight / 3);
+
+            for (let i = 0; i < 110; i++) {
+                const angulo = Math.random() * Math.PI * 2;
+                const velocidade = 3 + Math.random() * 7;
+                particulas.push({
+                    x: origemX,
+                    y: origemY,
+                    vx: Math.cos(angulo) * velocidade,
+                    vy: Math.sin(angulo) * velocidade - 3,
+                    cor: cores[Math.floor(Math.random() * cores.length)],
+                    tamanho: 4 + Math.random() * 4,
+                    vida: 1,
+                    rotacao: Math.random() * Math.PI,
+                    vRotacao: (Math.random() - 0.5) * 0.3
+                });
+            }
+
+            if (!animandoConfete) {
+                animandoConfete = true;
+                requestAnimationFrame(loopConfete);
+            }
+        }
+
+        function loopConfete() {
+            ctxConfete.clearRect(0, 0, canvasConfete.width, canvasConfete.height);
+
+            particulas.forEach((p) => {
+                p.vy += 0.15;
+                p.x += p.vx;
+                p.y += p.vy;
+                p.rotacao += p.vRotacao;
+                p.vida -= 0.012;
+
+                ctxConfete.save();
+                ctxConfete.globalAlpha = Math.max(p.vida, 0);
+                ctxConfete.translate(p.x, p.y);
+                ctxConfete.rotate(p.rotacao);
+                ctxConfete.fillStyle = p.cor;
+                ctxConfete.fillRect(-p.tamanho / 2, -p.tamanho / 2, p.tamanho, p.tamanho * 0.6);
+                ctxConfete.restore();
+            });
+
+            particulas = particulas.filter((p) => p.vida > 0 && p.y < canvasConfete.height + 40);
+
+            if (particulas.length > 0) {
+                requestAnimationFrame(loopConfete);
+            } else {
+                animandoConfete = false;
+            }
+        }
+
+        // --- Renderização dos velocímetros ---
+
+        function atualizarVisualGauge(chave, atual, meta) {
+            const pct = meta > 0 ? Math.min(100, (atual / meta) * 100) : 0;
+            const angulo = -90 + (pct / 100) * 180;
+
+            document.getElementById(`needle-${chave}`).style.transform = `rotate(${angulo}deg)`;
+            document.getElementById(`fill-${chave}`).style.strokeDashoffset = 100 - pct;
+            document.getElementById(`valorAtual-${chave}`).textContent = formatarNumero(atual);
+
+            const elMeta = document.getElementById(`valorMeta-${chave}`);
+            if (elMeta) elMeta.textContent = formatarNumero(meta);
+
+            const elCompacto = document.getElementById(`compacto-${chave}`);
+            if (elCompacto) {
+                elCompacto.textContent = (atual >= 100000 || meta >= 100000)
+                    ? `${formatarCompacto(atual)}${meta > 0 ? ' de ' + formatarCompacto(meta) : ''}`
+                    : '';
+            }
+        }
+
+        function atualizarStatusEConfete(chave, concluido, permitirCelebracao) {
+            const status = document.getElementById(`status-${chave}`);
+            if (!status) return;
+
+            const atingida = concluido === 'sim';
+            status.textContent = atingida ? 'Meta atingida' : 'Em andamento';
+            status.dataset.done = atingida;
+
+            if (permitirCelebracao && atingida && concluidoAnterior[chave] === false) {
+                const cor = getComputedStyle(status.closest('[data-accent]')).getPropertyValue('--accent').trim();
+                celebrar(cor);
+            }
+            concluidoAnterior[chave] = atingida;
+        }
+
+        function renderizarEntradas(indiceGauge, entradas) {
+            const lista = document.getElementById(`entradas-g${indiceGauge}`);
+            lista.innerHTML = '';
+
+            if (entradas.length === 0) {
+                const vazio = document.createElement('li');
+                vazio.className = 'entradas-lista__vazio';
+                vazio.textContent = 'Nenhuma entrada ainda.';
+                lista.appendChild(vazio);
+                return;
+            }
+
+            entradas.forEach((entrada, indiceEntrada) => {
+                const item = document.createElement('li');
+                item.className = 'entradas-lista__item';
+
+                const clienteSpan = document.createElement('span');
+                clienteSpan.textContent = entrada.cliente;
+                const valorSpan = document.createElement('span');
+                valorSpan.textContent = formatarNumero(entrada.valor);
+                const botaoRemover = document.createElement('button');
+                botaoRemover.type = 'button';
+                botaoRemover.className = 'entradas-lista__remover';
+                botaoRemover.textContent = '×';
+                botaoRemover.setAttribute('aria-label', `Remover entrada de ${entrada.cliente}`);
+                botaoRemover.addEventListener('click', () => removerEntrada(indiceGauge, indiceEntrada));
+
+                item.appendChild(clienteSpan);
+                item.appendChild(valorSpan);
+                item.appendChild(botaoRemover);
+                lista.appendChild(item);
+            });
+        }
+
+        async function removerEntrada(indiceGauge, indiceEntrada) {
+            const resposta = await fetch('/remover-entrada', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ano: estadoAtual.ano, mes: estadoAtual.mes,
+                    indice: indiceGauge, indice_entrada: indiceEntrada
+                })
+            });
+            const dados = await resposta.json();
+
+            if (!resposta.ok) {
+                document.getElementById('mensagem').textContent = dados.erro || 'Não foi possível remover.';
+                return;
+            }
+
+            document.getElementById('mensagem').textContent = '';
+            renderizarEstado(dados);
+        }
+
+        let estadoAtual = null;
+
+        function renderizarEstado(estado, { permitirCelebracao = true } = {}) {
+            estadoAtual = estado;
+
+            atualizarVisualGauge('mes', estado.atual_mes, estado.meta_mes);
+            atualizarStatusEConfete('mes', estado.concluido_mes, permitirCelebracao);
+
+            atualizarVisualGauge('ano', estado.atual_ano, estado.meta_ano);
+            atualizarStatusEConfete('ano', estado.concluido_ano, permitirCelebracao);
+
+            estado.velocimetros.forEach((v, i) => {
+                atualizarVisualGauge(`g${i}`, v.atual, estado.meta_mes);
+                document.getElementById(`nome-g${i}`).textContent = v.nome;
+                renderizarEntradas(i, v.entradas);
+            });
+
+            document.getElementById('infoMetaMes').textContent =
+                `Meta atual: ${formatarNumero(estado.meta_mes)}  •  Acumulado: ${formatarNumero(estado.atual_mes)}`;
+            document.getElementById('infoMetaAno').textContent =
+                `Meta atual: ${formatarNumero(estado.meta_ano)}  •  Acumulado: ${formatarNumero(estado.atual_ano)}`;
+
+            const seletorVelocimetro = document.getElementById('seletorVelocimetro');
+            Array.from(seletorVelocimetro.options).forEach((opcao, i) => {
+                opcao.textContent = estado.velocimetros[i].nome;
+            });
+            atualizarInfoVelocimetroSelecionado();
+
+            document.getElementById('rotuloMesAno').textContent = `${NOMES_MESES[estado.mes - 1]} de ${estado.ano}`;
+            document.getElementById('rotuloAno').textContent = `Ano de ${estado.ano}`;
+
+            renderizarGraficoMes(estado.velocimetros);
+            renderizarGraficoAno(estado.meses_do_ano);
+        }
+
+        // --- Seletor de mês/ano ---
+
+        function popularSeletoresMesAno(anoInicial, mesInicial) {
+            const seletorMes = document.getElementById('seletorMes');
+            NOMES_MESES.forEach((nome, i) => {
+                const opcao = document.createElement('option');
+                opcao.value = String(i + 1);
+                opcao.textContent = nome;
+                seletorMes.appendChild(opcao);
+            });
+            seletorMes.value = String(mesInicial);
+
+            const seletorAno = document.getElementById('seletorAno');
+            const anoDeHoje = new Date().getFullYear();
+            const inicio = Math.min(anoDeHoje - 2, anoInicial);
+            const fim = Math.max(anoDeHoje + 2, anoInicial);
+            for (let ano = inicio; ano <= fim; ano++) {
+                const opcao = document.createElement('option');
+                opcao.value = String(ano);
+                opcao.textContent = String(ano);
+                seletorAno.appendChild(opcao);
+            }
+            seletorAno.value = String(anoInicial);
+
+            seletorMes.addEventListener('change', carregarMesSelecionado);
+            seletorAno.addEventListener('change', carregarMesSelecionado);
+        }
+
+        async function carregarMesSelecionado() {
+            const mes = parseInt(document.getElementById('seletorMes').value, 10);
+            const ano = parseInt(document.getElementById('seletorAno').value, 10);
+            const mensagem = document.getElementById('mensagem');
+
+            const resposta = await fetch('/carregar-mes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ano, mes })
+            });
+            const dados = await resposta.json();
+
+            if (!resposta.ok) {
+                mensagem.textContent = dados.erro || 'Não foi possível carregar.';
+                return;
+            }
+
+            mensagem.textContent = '';
+            renderizarEstado(dados, { permitirCelebracao: false });
+        }
+
+        // --- Editar meta do mês ---
+
+        async function aplicarMetaMes() {
+            const campo = document.getElementById('campoMetaMes');
+            if (campo.value === '') {
+                document.getElementById('mensagem').textContent = 'Informe um valor para a meta do mês.';
+                return;
+            }
+
+            const modo = obterModo('modoMetaMes');
+            const numero = lerNumero(campo.value);
+            const base = estadoAtual.meta_mes;
+            const novaMeta = modo === 'somar' ? base + numero : modo === 'subtrair' ? base - numero : numero;
+
+            const resposta = await fetch('/editar-meta-mes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ano: estadoAtual.ano, mes: estadoAtual.mes, meta: novaMeta })
+            });
+            const dados = await resposta.json();
+
+            if (!resposta.ok) {
+                document.getElementById('mensagem').textContent = dados.erro || 'Não foi possível atualizar.';
+                return;
+            }
+
+            document.getElementById('mensagem').textContent = '';
+            renderizarEstado(dados);
+            campo.value = '';
+        }
+
+        async function aplicarMetaAno() {
+            const campo = document.getElementById('campoMetaAno');
+            if (campo.value === '') {
+                document.getElementById('mensagem').textContent = 'Informe um valor para a meta do ano.';
+                return;
+            }
+
+            const modo = obterModo('modoMetaAno');
+            const numero = lerNumero(campo.value);
+            const base = estadoAtual.meta_ano;
+            const novaMeta = modo === 'somar' ? base + numero : modo === 'subtrair' ? base - numero : numero;
+
+            const resposta = await fetch('/editar-meta-ano', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ano: estadoAtual.ano, mes: estadoAtual.mes, meta: novaMeta })
+            });
+            const dados = await resposta.json();
+
+            if (!resposta.ok) {
+                document.getElementById('mensagem').textContent = dados.erro || 'Não foi possível atualizar.';
+                return;
+            }
+
+            document.getElementById('mensagem').textContent = '';
+            renderizarEstado(dados);
+            campo.value = '';
+        }
+
+        // --- Editar velocímetros de clientes ---
+
+        function obterIndiceVelocimetroSelecionado() {
+            return parseInt(document.getElementById('seletorVelocimetro').value, 10);
+        }
+
+        function atualizarInfoVelocimetroSelecionado() {
+            if (!estadoAtual) return;
+            const indice = obterIndiceVelocimetroSelecionado();
+            const v = estadoAtual.velocimetros[indice];
+            document.getElementById('campoNomeVelocimetro').value = v.nome;
+            document.getElementById('infoVelocimetro').textContent = `Acumulado: ${formatarNumero(v.atual)}`;
+        }
+
+        async function salvarNomeVelocimetro() {
+            const nome = document.getElementById('campoNomeVelocimetro').value.trim();
+            if (nome === '') {
+                document.getElementById('mensagem').textContent = 'O nome não pode ficar vazio.';
+                return;
+            }
+
+            const resposta = await fetch('/editar-nome-velocimetro', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ano: estadoAtual.ano, mes: estadoAtual.mes,
+                    indice: obterIndiceVelocimetroSelecionado(), nome
+                })
+            });
+            const dados = await resposta.json();
+
+            if (!resposta.ok) {
+                document.getElementById('mensagem').textContent = dados.erro || 'Não foi possível atualizar.';
+                return;
+            }
+
+            document.getElementById('mensagem').textContent = '';
+            renderizarEstado(dados);
+        }
+
+        async function adicionarEntradaVelocimetro() {
+            const cliente = document.getElementById('campoClienteEntrada').value.trim();
+            const valorTexto = document.getElementById('campoValorEntrada').value;
+
+            if (cliente === '') {
+                document.getElementById('mensagem').textContent = 'Informe o nome do cliente.';
+                return;
+            }
+            if (valorTexto === '') {
+                document.getElementById('mensagem').textContent = 'Informe o valor.';
+                return;
+            }
+
+            const resposta = await fetch('/adicionar-entrada', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ano: estadoAtual.ano, mes: estadoAtual.mes,
+                    indice: obterIndiceVelocimetroSelecionado(),
+                    cliente, valor: lerNumero(valorTexto)
+                })
+            });
+            const dados = await resposta.json();
+
+            if (!resposta.ok) {
+                document.getElementById('mensagem').textContent = dados.erro || 'Não foi possível atualizar.';
+                return;
+            }
+
+            document.getElementById('mensagem').textContent = '';
+            renderizarEstado(dados);
+            document.getElementById('campoClienteEntrada').value = '';
+            document.getElementById('campoValorEntrada').value = '';
+        }
+
+        // --- Gráficos ---
+
+        const NOMES_MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        const NS_SVG = 'http://www.w3.org/2000/svg';
+
+        function criarElementoSvg(tipo, atributos) {
+            const el = document.createElementNS(NS_SVG, tipo);
+            Object.entries(atributos).forEach(([chave, valor]) => el.setAttribute(chave, valor));
+            return el;
+        }
+
+        function renderizarGraficoMes(velocimetros) {
+            const svg = document.getElementById('grafico-mes');
+            svg.innerHTML = '';
+
+            const largura = 300, altura = 150, margemBaixo = 30, margemTopo = 12;
+            const areaAltura = altura - margemBaixo - margemTopo;
+            const maximo = Math.max(1, ...velocimetros.map((v) => v.atual));
+            const espaco = largura / velocimetros.length;
+            const larguraBarra = espaco * 0.55;
+
+            velocimetros.forEach((v, i) => {
+                const alturaBarra = (v.atual / maximo) * areaAltura;
+                const x = i * espaco + (espaco - larguraBarra) / 2;
+                const y = margemTopo + (areaAltura - alturaBarra);
+
+                svg.appendChild(criarElementoSvg('rect', {
+                    x, y, width: larguraBarra, height: Math.max(alturaBarra, 1),
+                    rx: 4, fill: 'var(--accent)'
+                }));
+
+                const rotulo = criarElementoSvg('text', {
+                    x: x + larguraBarra / 2, y: altura - margemBaixo + 14,
+                    'text-anchor': 'middle', class: 'grafico__rotulo'
+                });
+                rotulo.textContent = v.nome;
+                svg.appendChild(rotulo);
+
+                const valorTexto = criarElementoSvg('text', {
+                    x: x + larguraBarra / 2, y: Math.max(y - 4, margemTopo + 9),
+                    'text-anchor': 'middle', class: 'grafico__valor'
+                });
+                valorTexto.textContent = formatarCompacto(v.atual);
+                svg.appendChild(valorTexto);
+            });
+        }
+
+        function renderizarGraficoAno(mesesDoAno) {
+            const svg = document.getElementById('grafico-ano');
+            svg.innerHTML = '';
+
+            const largura = 600, altura = 180, margemBaixo = 26, margemTopo = 14;
+            const areaAltura = altura - margemBaixo - margemTopo;
+            const maximo = Math.max(1, ...mesesDoAno.map((m) => Math.max(m.atual, m.meta)));
+            const espaco = largura / mesesDoAno.length;
+            const larguraBarra = espaco * 0.55;
+
+            mesesDoAno.forEach((m, i) => {
+                const alturaBarra = (m.atual / maximo) * areaAltura;
+                const x = i * espaco + (espaco - larguraBarra) / 2;
+                const y = margemTopo + (areaAltura - alturaBarra);
+
+                svg.appendChild(criarElementoSvg('rect', {
+                    x, y, width: larguraBarra, height: Math.max(alturaBarra, 1),
+                    rx: 3, fill: 'var(--accent)'
+                }));
+
+                if (m.meta > 0) {
+                    const yMeta = margemTopo + (areaAltura - (m.meta / maximo) * areaAltura);
+                    svg.appendChild(criarElementoSvg('line', {
+                        x1: x - 2, x2: x + larguraBarra + 2, y1: yMeta, y2: yMeta,
+                        class: 'grafico__linha-meta'
+                    }));
+                }
+
+                const rotulo = criarElementoSvg('text', {
+                    x: x + larguraBarra / 2, y: altura - margemBaixo + 14,
+                    'text-anchor': 'middle', class: 'grafico__rotulo'
+                });
+                rotulo.textContent = NOMES_MESES_ABREV[m.mes - 1];
+                svg.appendChild(rotulo);
+            });
+        }
+
+        // --- Exportar CSV ---
+
+        function baixarCsv(nomeArquivo, linhas) {
+            const conteudo = linhas
+                .map((linha) => linha.map((campo) => `"${String(campo).replace(/"/g, '""')}"`).join(';'))
+                .join('\r\n');
+            const blob = new Blob(['\ufeff' + conteudo], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = nomeArquivo;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        function baixarCsvMes() {
+            const linhas = [['Velocímetro', 'Cliente', 'Valor']];
+            estadoAtual.velocimetros.forEach((v) => {
+                if (v.entradas.length === 0) {
+                    linhas.push([v.nome, '(sem entradas)', 0]);
+                } else {
+                    v.entradas.forEach((e) => linhas.push([v.nome, e.cliente, e.valor]));
+                }
+            });
+            linhas.push(['', '', '']);
+            linhas.push(['Meta do mês', '', estadoAtual.meta_mes]);
+            linhas.push(['Acumulado do mês', '', estadoAtual.atual_mes]);
+            const nomeArquivo = `vendas-${estadoAtual.ano}-${String(estadoAtual.mes).padStart(2, '0')}.csv`;
+            baixarCsv(nomeArquivo, linhas);
+        }
+
+        function baixarCsvAno() {
+            const linhas = [['Mês', 'Meta', 'Acumulado']];
+            estadoAtual.meses_do_ano.forEach((m) => {
+                linhas.push([NOMES_MESES[m.mes - 1], m.meta, m.atual]);
+            });
+            linhas.push(['', '', '']);
+            linhas.push(['Meta do ano', '', estadoAtual.meta_ano]);
+            linhas.push(['Acumulado do ano', '', estadoAtual.atual_ano]);
+            baixarCsv(`vendas-${estadoAtual.ano}.csv`, linhas);
+        }
+
+        // --- Inicialização ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const estadoInicial = JSON.parse(document.getElementById('estado-inicial').textContent);
+
+            popularSeletoresMesAno(estadoInicial.ano, estadoInicial.mes);
+            renderizarEstado(estadoInicial, { permitirCelebracao: false });
+
+            document.getElementById('seletorVelocimetro').addEventListener('change', atualizarInfoVelocimetroSelecionado);
+
+            [
+                document.getElementById('campoMetaMes'),
+                document.getElementById('campoValorEntrada')
+            ].forEach((el) => formatarEntradaAoDigitar(el));
+        });
+    </script>
+</body>
+
+</html>
