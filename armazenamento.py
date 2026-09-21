@@ -1,129 +1,152 @@
-"""Camada de acesso a dados (Firestore) para o Vendas Aeroduto.
+from flask import Flask, render_template, jsonify, request
 
-Isolar aqui o acesso ao Firestore permite trocar o cliente real por um
-falso nos testes, sem precisar de credenciais de verdade.
-"""
+app = Flask(__name__)
 
-NOMES_PADRAO = ["Equipe A", "Equipe B", "Equipe C"]
+metas = {
+    "mensal": [
+        {"titulo": f"Vendedor {i + 1}", "meta": 50000, "atual": 0, "concluido": "não"}
+        for i in range(4)
+    ],
+    "anual": {
+        "titulo": "Meta anual",
+        "meta": 1200000,
+        "entradas": [],
+    },
+}
 
 
-def id_do_mes(ano, mes):
-    return f"{ano:04d}-{mes:02d}"
+def calcular_anual():
+    total = sum(e["valor"] for e in metas["anual"]["entradas"])
+    concluido = "sim" if total >= metas["anual"]["meta"] else "não"
+    return total, concluido
 
 
-def mes_padrao():
+def estado_anual_json():
+    atual, concluido = calcular_anual()
     return {
-        "meta": 0,
-        "gauges": [{"nome": nome, "entradas": []} for nome in NOMES_PADRAO],
+        "titulo": metas["anual"]["titulo"],
+        "meta": metas["anual"]["meta"],
+        "atual": atual,
+        "concluido": concluido,
+        "entradas": metas["anual"]["entradas"],
     }
 
 
-class Armazenamento:
-    """Wrapper fino sobre um cliente Firestore (real ou falso)."""
-
-    def __init__(self, db):
-        self.db = db
-
-    def obter_mes(self, ano, mes):
-        doc = self.db.collection("meses").document(id_do_mes(ano, mes)).get()
-        if doc.exists:
-            dados = doc.to_dict()
-            dados.setdefault("meta", 0)
-            dados.setdefault("gauges", mes_padrao()["gauges"])
-            # garante sempre 3 gauges mesmo se o documento estiver incompleto
-            while len(dados["gauges"]) < 3:
-                dados["gauges"].append(
-                    {"nome": NOMES_PADRAO[len(dados["gauges"])], "entradas": []}
-                )
-            return dados
-        return mes_padrao()
-
-    def salvar_mes(self, ano, mes, dados):
-        self.db.collection("meses").document(id_do_mes(ano, mes)).set(dados)
-
-    def definir_meta_mes(self, ano, mes, nova_meta):
-        dados = self.obter_mes(ano, mes)
-        dados["meta"] = nova_meta
-        self.salvar_mes(ano, mes, dados)
-        return dados
-
-    def definir_nome_velocimetro(self, ano, mes, indice, nome):
-        dados = self.obter_mes(ano, mes)
-        dados["gauges"][indice]["nome"] = nome
-        self.salvar_mes(ano, mes, dados)
-        return dados
-
-    def adicionar_entrada(self, ano, mes, indice, cliente, valor):
-        dados = self.obter_mes(ano, mes)
-        dados["gauges"][indice]["entradas"].append({"cliente": cliente, "valor": valor})
-        self.salvar_mes(ano, mes, dados)
-        return dados
-
-    def remover_entrada(self, ano, mes, indice, indice_entrada):
-        dados = self.obter_mes(ano, mes)
-        dados["gauges"][indice]["entradas"].pop(indice_entrada)
-        self.salvar_mes(ano, mes, dados)
-        return dados
-
-    def obter_meta_ano_override(self, ano):
-        doc = self.db.collection("anos").document(str(ano)).get()
-        if doc.exists:
-            dados = doc.to_dict()
-            return dados.get("meta")
-        return None
-
-    def definir_meta_ano(self, ano, meta):
-        self.db.collection("anos").document(str(ano)).set({"meta": meta})
-
-    @staticmethod
-    def calcular_totais_mes(dados):
-        atuais_gauges = [sum(e["valor"] for e in g["entradas"]) for g in dados["gauges"]]
-        atual_mes = sum(atuais_gauges)
-        return atual_mes, atuais_gauges
-
-    def detalhar_ano(self, ano):
-        """Retorna (meta_ano, atual_ano, concluido_ano, detalhes_por_mes).
-
-        meta_ano é a meta definida manualmente para o ano (definir_meta_ano),
-        ou, se nenhuma foi definida ainda, a soma automática das metas dos 12 meses.
-        """
-        meta_override = self.obter_meta_ano_override(ano)
-        detalhes = []
-        soma_metas = 0
-        soma_atual = 0
-        for mes in range(1, 13):
-            dados = self.obter_mes(ano, mes)
-            atual_mes, _ = self.calcular_totais_mes(dados)
-            detalhes.append({"mes": mes, "meta": dados["meta"], "atual": atual_mes})
-            soma_metas += dados["meta"]
-            soma_atual += atual_mes
-
-        meta_ano = meta_override if meta_override is not None else soma_metas
-        concluido_ano = "sim" if meta_ano > 0 and soma_atual >= meta_ano else "não"
-        return meta_ano, soma_atual, concluido_ano, detalhes
+@app.route("/")
+def pagina():
+    atual, concluido = calcular_anual()
+    return render_template(
+        "index5.html",
+        mensal=metas["mensal"],
+        anual_titulo=metas["anual"]["titulo"],
+        anual_meta=metas["anual"]["meta"],
+        anual_atual=atual,
+        anual_concluido=concluido,
+        anual_entradas=metas["anual"]["entradas"],
+    )
 
 
-def estado_completo(armazenamento, ano, mes):
-    """Monta o JSON completo (mês selecionado + acumulado do ano) que o front-end consome."""
-    dados = armazenamento.obter_mes(ano, mes)
-    atual_mes, atuais_gauges = armazenamento.calcular_totais_mes(dados)
-    meta_mes = dados["meta"]
-    concluido_mes = "sim" if meta_mes > 0 and atual_mes >= meta_mes else "não"
+@app.route("/alterar-mensal", methods=["POST"])
+def alterar_mensal():
+    dados = request.get_json(silent=True) or {}
+    indice = dados.get("indice")
 
-    meta_ano, atual_ano, concluido_ano, meses_do_ano = armazenamento.detalhar_ano(ano)
+    if not isinstance(indice, int) or not (0 <= indice < len(metas["mensal"])):
+        return jsonify({"erro": "Selecione um velocímetro válido."}), 400
 
-    return {
-        "ano": ano,
-        "mes": mes,
-        "meta_mes": meta_mes,
-        "atual_mes": atual_mes,
-        "concluido_mes": concluido_mes,
-        "velocimetros": [
-            {"nome": g["nome"], "atual": atuais_gauges[i], "entradas": g["entradas"]}
-            for i, g in enumerate(dados["gauges"])
-        ],
-        "meta_ano": meta_ano,
-        "atual_ano": atual_ano,
-        "concluido_ano": concluido_ano,
-        "meses_do_ano": meses_do_ano,
-    }
+    item = metas["mensal"][indice]
+
+    if "titulo" in dados:
+        titulo = str(dados["titulo"]).strip()
+        if titulo == "":
+            return jsonify({"erro": "O subtítulo não pode ficar vazio."}), 400
+        item["titulo"] = titulo[:40]
+
+    try:
+        if "atual" in dados:
+            item["atual"] = int(dados["atual"])
+        if "meta" in dados:
+            item["meta"] = int(dados["meta"])
+    except (TypeError, ValueError):
+        return jsonify({"erro": "Informe valores inteiros válidos."}), 400
+
+    if item["atual"] < 0 or item["meta"] < 0:
+        return jsonify({"erro": "Os valores não podem ser negativos."}), 400
+
+    item["concluido"] = "sim" if item["atual"] >= item["meta"] else "não"
+
+    return jsonify({
+        "indice": indice,
+        "titulo": item["titulo"],
+        "atual": item["atual"],
+        "meta": item["meta"],
+        "concluido": item["concluido"],
+    })
+
+
+@app.route("/alterar-anual", methods=["POST"])
+def alterar_anual():
+    dados = request.get_json(silent=True) or {}
+    tipo = dados.get("tipo")
+
+    if tipo == "titulo":
+        titulo = str(dados.get("valor", "")).strip()
+        if titulo == "":
+            return jsonify({"erro": "O subtítulo não pode ficar vazio."}), 400
+        metas["anual"]["titulo"] = titulo[:40]
+
+    elif tipo == "meta":
+        try:
+            nova_meta = int(dados.get("valor"))
+        except (TypeError, ValueError):
+            return jsonify({"erro": "Informe um valor inteiro válido."}), 400
+        if nova_meta < 0:
+            return jsonify({"erro": "A meta não pode ser negativa."}), 400
+        metas["anual"]["meta"] = nova_meta
+
+    elif tipo == "adicionar":
+        rotulo = str(dados.get("rotulo", "")).strip()
+        if rotulo == "":
+            rotulo = f"Entrada {len(metas['anual']['entradas']) + 1}"
+        try:
+            valor = int(dados.get("valor", 0))
+        except (TypeError, ValueError):
+            return jsonify({"erro": "Informe um valor inteiro válido."}), 400
+        if valor < 0:
+            return jsonify({"erro": "O valor não pode ser negativo."}), 400
+        metas["anual"]["entradas"].append({"rotulo": rotulo[:40], "valor": valor})
+
+    elif tipo == "editar":
+        indice = dados.get("indice")
+        if not isinstance(indice, int) or not (0 <= indice < len(metas["anual"]["entradas"])):
+            return jsonify({"erro": "Selecione uma entrada válida."}), 400
+        entrada = metas["anual"]["entradas"][indice]
+
+        if "rotulo" in dados:
+            rotulo = str(dados["rotulo"]).strip()
+            if rotulo == "":
+                return jsonify({"erro": "O rótulo não pode ficar vazio."}), 400
+            entrada["rotulo"] = rotulo[:40]
+
+        if "valor" in dados:
+            try:
+                novo_valor = int(dados["valor"])
+            except (TypeError, ValueError):
+                return jsonify({"erro": "Informe um valor inteiro válido."}), 400
+            if novo_valor < 0:
+                return jsonify({"erro": "O valor não pode ser negativo."}), 400
+            entrada["valor"] = novo_valor
+
+    elif tipo == "remover":
+        indice = dados.get("indice")
+        if not isinstance(indice, int) or not (0 <= indice < len(metas["anual"]["entradas"])):
+            return jsonify({"erro": "Selecione uma entrada válida."}), 400
+        metas["anual"]["entradas"].pop(indice)
+
+    else:
+        return jsonify({"erro": "Ação inválida."}), 400
+
+    return jsonify(estado_anual_json())
+
+
+app.run(debug=True)
