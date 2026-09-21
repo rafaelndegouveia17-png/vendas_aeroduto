@@ -599,7 +599,9 @@
                     editável). À direita, os 3 velocímetros de clientes — cada entrada que você adiciona soma no
                     total. Embaixo, o acumulado do ano inteiro.</p>
             </header>
-            <a class="sair" href="{{ url_for('logout') }}">Sair ({{ usuario }})</a>
+            <a class="sair" href="{{ url_for('logout') }}">
+                Sair ({{ usuario }} — {{ 'administrador' if is_admin else 'visualização' }})
+            </a>
         </div>
 
         <div class="seletor-periodo">
@@ -703,6 +705,7 @@
             </div>
         </section>
 
+        {% if is_admin %}
         <main class="editores">
             <section class="gauge-card" data-accent="editor">
                 <h2 class="gauge-card__title">Editar metas</h2>
@@ -784,6 +787,7 @@
                 </div>
             </section>
         </main>
+        {% endif %}
 
         <section class="gauge-card" data-accent="editor" style="margin-top:24px;">
             <h2 class="gauge-card__title">Gráficos</h2>
@@ -804,9 +808,11 @@
         <p class="page__message" id="mensagem" role="status" aria-live="polite"></p>
     </div>
 
-    <script id="estado-inicial" type="application/json">{{ estado | tojson }}</script>
+    <script id="estado-inicial" type="application/json">{{ (estado | tojson) if estado is defined else '{}' }}</script>
 
     <script>
+        const ehAdmin = {{ (is_admin | tojson) if is_admin is defined else 'false' }};
+
         const NOMES_MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
@@ -966,16 +972,20 @@
                 clienteSpan.textContent = entrada.cliente;
                 const valorSpan = document.createElement('span');
                 valorSpan.textContent = formatarNumero(entrada.valor);
-                const botaoRemover = document.createElement('button');
-                botaoRemover.type = 'button';
-                botaoRemover.className = 'entradas-lista__remover';
-                botaoRemover.textContent = '×';
-                botaoRemover.setAttribute('aria-label', `Remover entrada de ${entrada.cliente}`);
-                botaoRemover.addEventListener('click', () => removerEntrada(indiceGauge, indiceEntrada));
 
                 item.appendChild(clienteSpan);
                 item.appendChild(valorSpan);
-                item.appendChild(botaoRemover);
+
+                if (ehAdmin) {
+                    const botaoRemover = document.createElement('button');
+                    botaoRemover.type = 'button';
+                    botaoRemover.className = 'entradas-lista__remover';
+                    botaoRemover.textContent = '×';
+                    botaoRemover.setAttribute('aria-label', `Remover entrada de ${entrada.cliente}`);
+                    botaoRemover.addEventListener('click', () => removerEntrada(indiceGauge, indiceEntrada));
+                    item.appendChild(botaoRemover);
+                }
+
                 lista.appendChild(item);
             });
         }
@@ -1017,16 +1027,18 @@
                 renderizarEntradas(i, v.entradas);
             });
 
-            document.getElementById('infoMetaMes').textContent =
-                `Meta atual: ${formatarNumero(estado.meta_mes)}  •  Acumulado: ${formatarNumero(estado.atual_mes)}`;
-            document.getElementById('infoMetaAno').textContent =
-                `Meta atual: ${formatarNumero(estado.meta_ano)}  •  Acumulado: ${formatarNumero(estado.atual_ano)}`;
+            if (ehAdmin) {
+                document.getElementById('infoMetaMes').textContent =
+                    `Meta atual: ${formatarNumero(estado.meta_mes)}  •  Acumulado: ${formatarNumero(estado.atual_mes)}`;
+                document.getElementById('infoMetaAno').textContent =
+                    `Meta atual: ${formatarNumero(estado.meta_ano)}  •  Acumulado: ${formatarNumero(estado.atual_ano)}`;
 
-            const seletorVelocimetro = document.getElementById('seletorVelocimetro');
-            Array.from(seletorVelocimetro.options).forEach((opcao, i) => {
-                opcao.textContent = estado.velocimetros[i].nome;
-            });
-            atualizarInfoVelocimetroSelecionado();
+                const seletorVelocimetro = document.getElementById('seletorVelocimetro');
+                Array.from(seletorVelocimetro.options).forEach((opcao, i) => {
+                    opcao.textContent = estado.velocimetros[i].nome;
+                });
+                atualizarInfoVelocimetroSelecionado();
+            }
 
             document.getElementById('rotuloMesAno').textContent = `${NOMES_MESES[estado.mes - 1]} de ${estado.ano}`;
             document.getElementById('rotuloAno').textContent = `Ano de ${estado.ano}`;
@@ -1151,7 +1163,7 @@
         }
 
         function atualizarInfoVelocimetroSelecionado() {
-            if (!estadoAtual) return;
+            if (!ehAdmin || !estadoAtual) return;
             const indice = obterIndiceVelocimetroSelecionado();
             const v = estadoAtual.velocimetros[indice];
             document.getElementById('campoNomeVelocimetro').value = v.nome;
@@ -1355,12 +1367,15 @@
             popularSeletoresMesAno(estadoInicial.ano, estadoInicial.mes);
             renderizarEstado(estadoInicial, { permitirCelebracao: false });
 
-            document.getElementById('seletorVelocimetro').addEventListener('change', atualizarInfoVelocimetroSelecionado);
+            if (ehAdmin) {
+                document.getElementById('seletorVelocimetro').addEventListener('change', atualizarInfoVelocimetroSelecionado);
 
-            [
-                document.getElementById('campoMetaMes'),
-                document.getElementById('campoValorEntrada')
-            ].forEach((el) => formatarEntradaAoDigitar(el));
+                [
+                    document.getElementById('campoMetaMes'),
+                    document.getElementById('campoMetaAno'),
+                    document.getElementById('campoValorEntrada')
+                ].forEach((el) => formatarEntradaAoDigitar(el));
+            }
         });
     </script>
 </body>
