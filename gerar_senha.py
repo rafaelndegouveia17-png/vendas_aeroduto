@@ -3,10 +3,11 @@
 Uso:
     python gerar_senha.py "senha-da-pessoa"
 
-Copie a saída e cole em app3.py, por exemplo:
+Copie a saída para dentro do dicionário, escolhendo o papel
+("admin" pode editar, "usuario" só visualiza):
     USUARIOS = {
-        "rafael": "<hash gerado aqui>",
-        "novo-usuario": "<outro hash>",
+        "rafael": {"senha": "<hash gerado aqui>", "papel": "admin"},
+        "novo-usuario": {"senha": "<outro hash>", "papel": "usuario"},
     }
 """
 import sys
