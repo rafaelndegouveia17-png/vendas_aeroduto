@@ -1,221 +1,152 @@
-import os
-from datetime import date
-from functools import wraps
-
-from flask import Flask, render_template, jsonify, request, redirect, url_for, session
-from werkzeug.security import check_password_hash, generate_password_hash
-
-from armazenamento import Armazenamento, estado_completo
+from flask import Flask, render_template, jsonify, request
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "troque-esta-chave-em-producao")
 
-# Troque a senha abaixo e/ou adicione mais usuários.
-# Use gerar_senha.py para criar o hash de uma nova senha:
-#   python gerar_senha.py "minha-senha-nova"
-USUARIOS = {
-    "Aeroduto": generate_password_hash("Aerodrive@26"),
+metas = {
+    "mensal": [
+        {"titulo": f"Vendedor {i + 1}", "meta": 50000, "atual": 0, "concluido": "não"}
+        for i in range(4)
+    ],
+    "anual": {
+        "titulo": "Meta anual",
+        "meta": 1200000,
+        "entradas": [],
+    },
 }
 
 
-def obter_db():
-    """Inicializa o cliente do Firestore usando o arquivo de credenciais do Firebase.
-
-    Veja as instruções de configuração no README para gerar
-    credenciais_firebase.json a partir do console do Firebase.
-    """
-    import firebase_admin
-    from firebase_admin import credentials, firestore
-
-    if not firebase_admin._apps:
-        caminho_credenciais = os.environ.get("FIREBASE_CREDENCIAIS", "credenciais_firebase.json")
-        cred = credentials.Certificate(caminho_credenciais)
-        firebase_admin.initialize_app(cred)
-    return firestore.client()
+def calcular_anual():
+    total = sum(e["valor"] for e in metas["anual"]["entradas"])
+    concluido = "sim" if total >= metas["anual"]["meta"] else "não"
+    return total, concluido
 
 
-try:
-    armazenamento = Armazenamento(db=obter_db())
-except Exception:
-    # Sem credenciais configuradas ainda -- as rotas abaixo avisam o usuário
-    # em vez de quebrar o servidor inteiro. Configure credenciais_firebase.json
-    # e reinicie para ativar o Firebase de verdade.
-    armazenamento = None
-
-
-def login_obrigatorio(func):
-    @wraps(func)
-    def decorado(*args, **kwargs):
-        if not session.get("usuario"):
-            return redirect(url_for("login"))
-        return func(*args, **kwargs)
-    return decorado
-
-
-def login_obrigatorio_api(func):
-    @wraps(func)
-    def decorado(*args, **kwargs):
-        if not session.get("usuario"):
-            return jsonify({"erro": "Sessão expirada. Faça login novamente."}), 401
-        if armazenamento is None:
-            return jsonify({"erro": "Firebase não configurado no servidor."}), 500
-        return func(*args, **kwargs)
-    return decorado
-
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    erro = None
-    if request.method == "POST":
-        usuario = request.form.get("usuario", "").strip()
-        senha = request.form.get("senha", "")
-        hash_armazenado = USUARIOS.get(usuario)
-        if hash_armazenado and check_password_hash(hash_armazenado, senha):
-            session["usuario"] = usuario
-            return redirect(url_for("pagina"))
-        erro = "Usuário ou senha inválidos."
-    return render_template("login.html", erro=erro)
-
-
-@app.route("/logout")
-def logout():
-    session.pop("usuario", None)
-    return redirect(url_for("login"))
+def estado_anual_json():
+    atual, concluido = calcular_anual()
+    return {
+        "titulo": metas["anual"]["titulo"],
+        "meta": metas["anual"]["meta"],
+        "atual": atual,
+        "concluido": concluido,
+        "entradas": metas["anual"]["entradas"],
+    }
 
 
 @app.route("/")
-@login_obrigatorio
 def pagina():
-    if armazenamento is None:
-        return (
-            "Firebase não configurado. Adicione credenciais_firebase.json "
-            "na pasta do projeto e reinicie o servidor.",
-            500,
-        )
-    hoje = date.today()
-    estado = estado_completo(armazenamento, hoje.year, hoje.month)
-    return render_template("index5.html", estado=estado, usuario=session.get("usuario"))
+    atual, concluido = calcular_anual()
+    return render_template(
+        "index5.html",
+        mensal=metas["mensal"],
+        anual_titulo=metas["anual"]["titulo"],
+        anual_meta=metas["anual"]["meta"],
+        anual_atual=atual,
+        anual_concluido=concluido,
+        anual_entradas=metas["anual"]["entradas"],
+    )
 
 
-@app.route("/carregar-mes", methods=["POST"])
-@login_obrigatorio_api
-def carregar_mes():
+@app.route("/alterar-mensal", methods=["POST"])
+def alterar_mensal():
     dados = request.get_json(silent=True) or {}
-    try:
-        ano = int(dados["ano"])
-        mes = int(dados["mes"])
-    except (KeyError, TypeError, ValueError):
-        return jsonify({"erro": "Informe ano e mês válidos."}), 400
-    if not (1 <= mes <= 12):
-        return jsonify({"erro": "Mês inválido."}), 400
-    return jsonify(estado_completo(armazenamento, ano, mes))
+    indice = dados.get("indice")
 
-
-@app.route("/editar-meta-mes", methods=["POST"])
-@login_obrigatorio_api
-def editar_meta_mes():
-    dados = request.get_json(silent=True) or {}
-    try:
-        ano = int(dados["ano"])
-        mes = int(dados["mes"])
-        nova_meta = int(dados["meta"])
-    except (KeyError, TypeError, ValueError):
-        return jsonify({"erro": "Informe valores válidos."}), 400
-    if not (1 <= mes <= 12):
-        return jsonify({"erro": "Mês inválido."}), 400
-    if nova_meta < 0:
-        return jsonify({"erro": "A meta não pode ser negativa."}), 400
-    armazenamento.definir_meta_mes(ano, mes, nova_meta)
-    return jsonify(estado_completo(armazenamento, ano, mes))
-
-
-@app.route("/editar-nome-velocimetro", methods=["POST"])
-@login_obrigatorio_api
-def editar_nome_velocimetro():
-    dados = request.get_json(silent=True) or {}
-    try:
-        ano = int(dados["ano"])
-        mes = int(dados["mes"])
-        indice = int(dados["indice"])
-    except (KeyError, TypeError, ValueError):
-        return jsonify({"erro": "Informe valores válidos."}), 400
-    if not (1 <= mes <= 12):
-        return jsonify({"erro": "Mês inválido."}), 400
-    if not (0 <= indice <= 2):
-        return jsonify({"erro": "Selecione um velocímetro válido."}), 400
-    nome = str(dados.get("nome", "")).strip()
-    if nome == "":
-        return jsonify({"erro": "O nome não pode ficar vazio."}), 400
-    armazenamento.definir_nome_velocimetro(ano, mes, indice, nome[:40])
-    return jsonify(estado_completo(armazenamento, ano, mes))
-
-
-@app.route("/adicionar-entrada", methods=["POST"])
-@login_obrigatorio_api
-def adicionar_entrada():
-    dados = request.get_json(silent=True) or {}
-    try:
-        ano = int(dados["ano"])
-        mes = int(dados["mes"])
-        indice = int(dados["indice"])
-        valor = int(dados["valor"])
-    except (KeyError, TypeError, ValueError):
-        return jsonify({"erro": "Informe valores válidos."}), 400
-    if not (1 <= mes <= 12):
-        return jsonify({"erro": "Mês inválido."}), 400
-    if not (0 <= indice <= 2):
-        return jsonify({"erro": "Selecione um velocímetro válido."}), 400
-    if valor < 0:
-        return jsonify({"erro": "O valor não pode ser negativo."}), 400
-    cliente = str(dados.get("cliente", "")).strip()
-    if cliente == "":
-        return jsonify({"erro": "Informe o nome do cliente."}), 400
-    armazenamento.adicionar_entrada(ano, mes, indice, cliente[:60], valor)
-    return jsonify(estado_completo(armazenamento, ano, mes))
-
-
-@app.route("/editar-meta-ano", methods=["POST"])
-@login_obrigatorio_api
-def editar_meta_ano():
-    dados = request.get_json(silent=True) or {}
-    try:
-        ano = int(dados["ano"])
-        mes = int(dados["mes"])
-        nova_meta = int(dados["meta"])
-    except (KeyError, TypeError, ValueError):
-        return jsonify({"erro": "Informe valores válidos."}), 400
-    if not (1 <= mes <= 12):
-        return jsonify({"erro": "Mês inválido."}), 400
-    if nova_meta < 0:
-        return jsonify({"erro": "A meta não pode ser negativa."}), 400
-    armazenamento.definir_meta_ano(ano, nova_meta)
-    return jsonify(estado_completo(armazenamento, ano, mes))
-
-
-@app.route("/remover-entrada", methods=["POST"])
-@login_obrigatorio_api
-def remover_entrada():
-    dados = request.get_json(silent=True) or {}
-    try:
-        ano = int(dados["ano"])
-        mes = int(dados["mes"])
-        indice = int(dados["indice"])
-        indice_entrada = int(dados["indice_entrada"])
-    except (KeyError, TypeError, ValueError):
-        return jsonify({"erro": "Informe valores válidos."}), 400
-    if not (1 <= mes <= 12):
-        return jsonify({"erro": "Mês inválido."}), 400
-    if not (0 <= indice <= 2):
+    if not isinstance(indice, int) or not (0 <= indice < len(metas["mensal"])):
         return jsonify({"erro": "Selecione um velocímetro válido."}), 400
 
-    mes_dados = armazenamento.obter_mes(ano, mes)
-    entradas = mes_dados["gauges"][indice]["entradas"]
-    if not (0 <= indice_entrada < len(entradas)):
-        return jsonify({"erro": "Selecione uma entrada válida."}), 400
+    item = metas["mensal"][indice]
 
-    armazenamento.remover_entrada(ano, mes, indice, indice_entrada)
-    return jsonify(estado_completo(armazenamento, ano, mes))
+    if "titulo" in dados:
+        titulo = str(dados["titulo"]).strip()
+        if titulo == "":
+            return jsonify({"erro": "O subtítulo não pode ficar vazio."}), 400
+        item["titulo"] = titulo[:40]
+
+    try:
+        if "atual" in dados:
+            item["atual"] = int(dados["atual"])
+        if "meta" in dados:
+            item["meta"] = int(dados["meta"])
+    except (TypeError, ValueError):
+        return jsonify({"erro": "Informe valores inteiros válidos."}), 400
+
+    if item["atual"] < 0 or item["meta"] < 0:
+        return jsonify({"erro": "Os valores não podem ser negativos."}), 400
+
+    item["concluido"] = "sim" if item["atual"] >= item["meta"] else "não"
+
+    return jsonify({
+        "indice": indice,
+        "titulo": item["titulo"],
+        "atual": item["atual"],
+        "meta": item["meta"],
+        "concluido": item["concluido"],
+    })
 
 
-if __name__ == "__main__":
-    app.run(debug=True)
+@app.route("/alterar-anual", methods=["POST"])
+def alterar_anual():
+    dados = request.get_json(silent=True) or {}
+    tipo = dados.get("tipo")
+
+    if tipo == "titulo":
+        titulo = str(dados.get("valor", "")).strip()
+        if titulo == "":
+            return jsonify({"erro": "O subtítulo não pode ficar vazio."}), 400
+        metas["anual"]["titulo"] = titulo[:40]
+
+    elif tipo == "meta":
+        try:
+            nova_meta = int(dados.get("valor"))
+        except (TypeError, ValueError):
+            return jsonify({"erro": "Informe um valor inteiro válido."}), 400
+        if nova_meta < 0:
+            return jsonify({"erro": "A meta não pode ser negativa."}), 400
+        metas["anual"]["meta"] = nova_meta
+
+    elif tipo == "adicionar":
+        rotulo = str(dados.get("rotulo", "")).strip()
+        if rotulo == "":
+            rotulo = f"Entrada {len(metas['anual']['entradas']) + 1}"
+        try:
+            valor = int(dados.get("valor", 0))
+        except (TypeError, ValueError):
+            return jsonify({"erro": "Informe um valor inteiro válido."}), 400
+        if valor < 0:
+            return jsonify({"erro": "O valor não pode ser negativo."}), 400
+        metas["anual"]["entradas"].append({"rotulo": rotulo[:40], "valor": valor})
+
+    elif tipo == "editar":
+        indice = dados.get("indice")
+        if not isinstance(indice, int) or not (0 <= indice < len(metas["anual"]["entradas"])):
+            return jsonify({"erro": "Selecione uma entrada válida."}), 400
+        entrada = metas["anual"]["entradas"][indice]
+
+        if "rotulo" in dados:
+            rotulo = str(dados["rotulo"]).strip()
+            if rotulo == "":
+                return jsonify({"erro": "O rótulo não pode ficar vazio."}), 400
+            entrada["rotulo"] = rotulo[:40]
+
+        if "valor" in dados:
+            try:
+                novo_valor = int(dados["valor"])
+            except (TypeError, ValueError):
+                return jsonify({"erro": "Informe um valor inteiro válido."}), 400
+            if novo_valor < 0:
+                return jsonify({"erro": "O valor não pode ser negativo."}), 400
+            entrada["valor"] = novo_valor
+
+    elif tipo == "remover":
+        indice = dados.get("indice")
+        if not isinstance(indice, int) or not (0 <= indice < len(metas["anual"]["entradas"])):
+            return jsonify({"erro": "Selecione uma entrada válida."}), 400
+        metas["anual"]["entradas"].pop(indice)
+
+    else:
+        return jsonify({"erro": "Ação inválida."}), 400
+
+    return jsonify(estado_anual_json())
+
+
+app.run(debug=True)
