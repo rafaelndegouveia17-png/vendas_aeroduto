@@ -16,8 +16,8 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "troque-esta-chave-em-produc
 # Use gerar_senha.py para criar o hash de uma nova senha:
 #   python gerar_senha.py "minha-senha-nova"
 USUARIOS = {
-    "rafael": {"senha": generate_password_hash("troque-esta-senha"), "papel": "admin"},
-    "consulta": {"senha": generate_password_hash("troque-esta-tambem"), "papel": "usuario"},
+    "Admin": {"senha": generate_password_hash("aerodrive@26"), "papel": "admin"},
+    "Aeroduto": {"senha": generate_password_hash("aeroduto26"), "papel": "usuario"},
 }
 
 
