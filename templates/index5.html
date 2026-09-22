@@ -808,10 +808,10 @@
         <p class="page__message" id="mensagem" role="status" aria-live="polite"></p>
     </div>
 
-    <script id="estado-inicial" type="application/json">{{ (estado | tojson) if estado is defined else '{}' }}</script>
+    <script id="estado-inicial" type="application/json">{{ estado | tojson }}</script>
 
     <script>
-        const ehAdmin = {{ (is_admin | tojson) if is_admin is defined else 'false' }};
+        const ehAdmin = {{ 'true' if is_admin else 'false' }};
 
         const NOMES_MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
